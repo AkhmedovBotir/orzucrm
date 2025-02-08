@@ -3,10 +3,11 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 
 export default function AgentFormModal({ agent, onSave, onClose }) {
   const [formData, setFormData] = useState({
-    fullName: agent?.fullName || '',
+    first_name: agent?.first_name || '',
+    last_name: agent?.last_name || '',
     phone: agent?.phone || '',
-    passportId: agent?.passportId || '',
-    password: agent?.password || ''
+    passport: agent?.passport || '',
+    password: ''
   });
 
   const handleChange = (e) => {
@@ -49,16 +50,32 @@ export default function AgentFormModal({ agent, onSave, onClose }) {
             {/* Form Content */}
             <div className="px-6 pb-4">
               <div className="space-y-4">
-                {/* Full Name */}
+                {/* Ism */}
                 <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
-                    Ism familiya
+                  <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">
+                    Ism
                   </label>
                   <input
                     type="text"
-                    name="fullName"
-                    id="fullName"
-                    value={formData.fullName}
+                    name="first_name"
+                    id="first_name"
+                    value={formData.first_name}
+                    onChange={handleChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    required
+                  />
+                </div>
+
+                {/* Familiya */}
+                <div>
+                  <label htmlFor="last_name" className="block text-sm font-medium text-gray-700">
+                    Familiya
+                  </label>
+                  <input
+                    type="text"
+                    name="last_name"
+                    id="last_name"
+                    value={formData.last_name}
                     onChange={handleChange}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     required
@@ -81,21 +98,48 @@ export default function AgentFormModal({ agent, onSave, onClose }) {
                   />
                 </div>
 
-                {/* Passport/ID */}
+                {/* Passport */}
                 <div>
-                  <label htmlFor="passportId" className="block text-sm font-medium text-gray-700">
-                    Pasport/ID
+                  <label htmlFor="passport" className="block text-sm font-medium text-gray-700">
+                    Pasport
                   </label>
-                  <input
-                    type="text"
-                    name="passportId"
-                    id="passportId"
-                    value={formData.passportId}
-                    onChange={handleChange}
-                    placeholder="AA1234567"
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    required
-                  />
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      type="text"
+                      name="passportSeries"
+                      id="passportSeries"
+                      value={formData.passport.slice(0, 2)}
+                      onChange={(e) => {
+                        const value = e.target.value.toUpperCase();
+                        if (value.length <= 2 && /^[A-Z]*$/.test(value)) {
+                          const newPassport = value + formData.passport.slice(2);
+                          setFormData(prev => ({ ...prev, passport: newPassport }));
+                          if (value.length === 2) {
+                            document.getElementById('passportNumber').focus();
+                          }
+                        }
+                      }}
+                      placeholder="AA"
+                      className="w-20 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm uppercase"
+                      required
+                    />
+                    <input
+                      type="text"
+                      name="passportNumber"
+                      id="passportNumber"
+                      value={formData.passport.slice(2)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value.length <= 7 && /^\d*$/.test(value)) {
+                          const newPassport = formData.passport.slice(0, 2) + value;
+                          setFormData(prev => ({ ...prev, passport: newPassport }));
+                        }
+                      }}
+                      placeholder="1234567"
+                      className="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      required
+                    />
+                  </div>
                 </div>
 
                 {/* Password */}

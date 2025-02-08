@@ -6,6 +6,7 @@ export default function StoreFormModal({ store, onSave, onClose }) {
     name: store?.name || '',
     address: store?.address || '',
     phone: store?.phone || '',
+    password: '',
     status: store?.status || 'active',
     image: store?.image || ''
   });
@@ -28,9 +29,36 @@ export default function StoreFormModal({ store, onSave, onClose }) {
     }
   };
 
+  const getImageUrl = (image) => {
+    if (!image) return '';
+    if (image.startsWith('data:')) return image; // Local preview
+    return `https://backend.milliycrm.uz/${image}`; // Server image
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    const data = new FormData();
+    
+    // Asosiy ma'lumotlar
+    data.append('name', formData.name);
+    data.append('address', formData.address);
+    data.append('phone', formData.phone);
+    
+    // Password faqat yangi do'kon uchun
+    if (!store) {
+      data.append('password', formData.password);
+    }
+    
+    // Agar rasm o'zgargan bo'lsa
+    if (fileInputRef.current?.files[0]) {
+      data.append('image', fileInputRef.current.files[0]);
+    }
+    // Agar edit mode bo'lsa va rasm o'zgarmagan bo'lsa
+    else if (store?.image) {
+      data.append('image', store.image);
+    }
+
+    onSave(data);
   };
 
   return (
@@ -70,7 +98,7 @@ export default function StoreFormModal({ store, onSave, onClose }) {
                     {formData.image ? (
                       <div className="relative w-32 h-32">
                         <img
-                          src={formData.image}
+                          src={getImageUrl(formData.image)}
                           alt="Store"
                           className="w-full h-full object-cover rounded-lg"
                         />
@@ -122,12 +150,12 @@ export default function StoreFormModal({ store, onSave, onClose }) {
                   <label htmlFor="address" className="block text-sm font-medium text-gray-700">
                     Manzil
                   </label>
-                  <textarea
+                  <input
+                    type="text"
                     name="address"
                     id="address"
                     value={formData.address}
                     onChange={handleChange}
-                    rows={3}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     required
                   />
@@ -149,24 +177,26 @@ export default function StoreFormModal({ store, onSave, onClose }) {
                   />
                 </div>
 
-                {/* Status - faqat tahrirlash rejimida */}
-                {store && (
+                {/* Password - faqat yangi do'kon uchun */}
+                {!store && (
                   <div>
-                    <label htmlFor="status" className="block text-sm font-medium text-gray-700">
-                      Status
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                      Parol
                     </label>
-                    <select
-                      name="status"
-                      id="status"
-                      value={formData.status}
+                    <input
+                      type="password"
+                      name="password"
+                      id="password"
+                      value={formData.password}
                       onChange={handleChange}
                       className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    >
-                      <option value="active">Faol</option>
-                      <option value="inactive">Nofaol</option>
-                    </select>
+                      required
+                      placeholder="Yangi parol kiriting"
+                    />
                   </div>
                 )}
+
+                
               </div>
             </div>
 

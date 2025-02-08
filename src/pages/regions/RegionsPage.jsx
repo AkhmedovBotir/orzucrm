@@ -3,119 +3,121 @@ import { Switch } from '@headlessui/react';
 import {
   PencilSquareIcon,
   TrashIcon,
-  EyeIcon,
   MagnifyingGlassIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
-import AppLayout from '../../components/layout/AppLayout';
-import AgentFormModal from '../../components/agents/AgentFormModal';
-import AgentViewModal from '../../components/agents/AgentViewModal';
-import DeleteConfirmModal from '../../components/agents/DeleteConfirmModal';
+import RegionFormModal from '../../components/regions/RegionFormModal';
+import DeleteConfirmModal from '../../components/regions/DeleteConfirmModal';
+import { getRegions, createRegion, updateRegionStatus, deleteRegion, updateRegion } from '../../api/regions';
 
-import { getAgents, updateAgentStatus, createAgent, deleteAgent, updateAgent } from '../../api/agents';
-
-export default function AgentsPage() {
-  const [agents, setAgents] = useState([]);
+export default function RegionsPage() {
+  const [regions, setRegions] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: 'asc'
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [selectedRegion, setSelectedRegion] = useState(null);
   const [error, setError] = useState('');
 
-  const itemsPerPage = 10;
+  const itemsPerPage = 20;
 
-  // Filter agents based on search query
-  const filteredAgents = agents.filter(agent =>
-    `${agent.first_name} ${agent.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    agent.phone.includes(searchQuery) ||
-    agent.passport.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter regions based on search query and status
+  const filteredRegions = regions.filter(region => {
+    const matchesSearch = region.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || region.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   // Calculate pagination
-  const totalPages = Math.ceil(filteredAgents.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredRegions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentAgents = filteredAgents.slice(startIndex, endIndex);
+  const currentRegions = filteredRegions.slice(startIndex, endIndex);
 
   const handleAdd = () => {
-    setSelectedAgent(null);
+    setSelectedRegion(null);
     setShowModal(true);
   };
 
-  const handleEdit = (agent) => {
-    setSelectedAgent(agent);
+  const handleEdit = (region) => {
+    setSelectedRegion(region);
     setShowModal(true);
   };
 
-  const handleDelete = (agent) => {
-    setSelectedAgent(agent);
+  const handleDelete = (region) => {
+    setSelectedRegion(region);
     setShowDeleteModal(true);
   };
 
-  const handleView = (agent) => {
-    setSelectedAgent(agent);
-    setShowViewModal(true);
-  };
-
-  useEffect(() => {
-    loadAgents();
-  }, []);
-
-  const loadAgents = async () => {
+  const handleStatusChange = async (region) => {
     try {
-      const data = await getAgents();
-      setAgents(data);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleStatusChange = async (agent) => {
-    try {
-      const newStatus = agent.status === 'active' ? 'inactive' : 'active';
-      await updateAgentStatus(agent._id, newStatus);
-      setAgents(agents.map(a => 
-        a._id === agent._id ? { ...a, status: newStatus } : a
+      const newStatus = region.status === 'active' ? 'inactive' : 'active';
+      const updatedRegion = await updateRegionStatus(region._id, newStatus);
+      setRegions(regions.map(r => 
+        r._id === region._id ? updatedRegion : r
       ));
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const handleSave = async (agentData) => {
+  const handleSave = async (regionData) => {
     try {
-      if (selectedAgent) {
-        // Update existing agent
-        const updatedAgent = await updateAgent(selectedAgent._id, agentData);
-        setAgents(agents.map(agent =>
-          agent._id === selectedAgent._id ? updatedAgent : agent
+      if (selectedRegion) {
+        // Update existing region
+        const updatedRegion = await updateRegion(selectedRegion._id, regionData);
+        setRegions(regions.map(region =>
+          region._id === selectedRegion._id ? updatedRegion : region
         ));
       } else {
-        // Add new agent
-        const newAgent = await createAgent(agentData);
-        setAgents([...agents, newAgent]);
+        // Add new region
+        const newRegion = await createRegion(regionData);
+        setRegions([...regions, newRegion]);
       }
       setShowModal(false);
-      setSelectedAgent(null);
+      setSelectedRegion(null);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const handleConfirmDelete = async (agent) => {
+  const handleConfirmDelete = async (region) => {
     try {
-      await deleteAgent(agent._id);
-      setAgents(agents.filter(a => a._id !== agent._id));
+      await deleteRegion(region._id);
+      setRegions(regions.filter(r => r._id !== region._id));
       setShowDeleteModal(false);
-      setSelectedAgent(null);
+      setSelectedRegion(null);
     } catch (err) {
       setError(err.message);
     }
   };
+
+  // Load regions on mount
+  useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        setLoading(true);
+        const data = await getRegions();
+        setRegions(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRegions();
+  }, []);
 
   return (
     <>
@@ -132,9 +134,9 @@ export default function AgentsPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Agentlar</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">Viloyatlar</h1>
             <p className="mt-1 text-sm text-gray-600">
-              Barcha agentlar ro'yxati
+              Barcha viloyatlar ro'yxati
             </p>
           </div>
           <button
@@ -142,12 +144,12 @@ export default function AgentsPage() {
             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             <PlusIcon className="h-5 w-5 mr-2" />
-            Yangi agent
+            Yangi viloyat
           </button>
         </div>
 
-        {/* Search */}
-        <div className="mb-6">
+        {/* Search and Filter */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
@@ -156,10 +158,19 @@ export default function AgentsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Agent nomi, telefon yoki ID bo'yicha qidirish..."
+              placeholder="Viloyat nomi bo'yicha qidirish..."
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="all">Barcha statuslar</option>
+            <option value="active">Faol</option>
+            <option value="inactive">Faol emas</option>
+          </select>
         </div>
 
         {/* Table */}
@@ -169,16 +180,70 @@ export default function AgentsPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Agent
+                    <button 
+                      onClick={() => {
+                        setSortConfig(prev => ({
+                          key: 'name',
+                          direction: prev.key === 'name' && prev.direction === 'asc' ? 'desc' : 'asc'
+                        }));
+                        const sorted = [...regions].sort((a, b) => {
+                          if (sortConfig.key === 'name') {
+                            return sortConfig.direction === 'asc' 
+                              ? b.name.localeCompare(a.name)
+                              : a.name.localeCompare(b.name);
+                          }
+                          return 0;
+                        });
+                        setRegions(sorted);
+                      }}
+                      className="group inline-flex items-center space-x-2 text-gray-500 hover:text-gray-900"
+                    >
+                      <span>Viloyat nomi</span>
+                      <span className="ml-2 flex-none rounded">
+                        {sortConfig.key === 'name' ? (
+                          sortConfig.direction === 'desc' ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronUpIcon className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ChevronUpIcon className="h-4 w-4 text-gray-400" />
+                        )}
+                      </span>
+                    </button>
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Telefon
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pasport/ID
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    <button 
+                      onClick={() => {
+                        setSortConfig(prev => ({
+                          key: 'status',
+                          direction: prev.key === 'status' && prev.direction === 'asc' ? 'desc' : 'asc'
+                        }));
+                        const sorted = [...regions].sort((a, b) => {
+                          if (sortConfig.key === 'status') {
+                            return sortConfig.direction === 'asc' 
+                              ? b.status.localeCompare(a.status)
+                              : a.status.localeCompare(b.status);
+                          }
+                          return 0;
+                        });
+                        setRegions(sorted);
+                      }}
+                      className="group inline-flex items-center space-x-2 text-gray-500 hover:text-gray-900"
+                    >
+                      <span>Status</span>
+                      <span className="ml-2 flex-none rounded">
+                        {sortConfig.key === 'status' ? (
+                          sortConfig.direction === 'desc' ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronUpIcon className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ChevronUpIcon className="h-4 w-4 text-gray-400" />
+                        )}
+                      </span>
+                    </button>
                   </th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Amallar
@@ -186,29 +251,37 @@ export default function AgentsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {currentAgents.map((agent) => (
-                  <tr key={agent._id} className="hover:bg-gray-50">
+                {loading ? (
+                  <tr>
+                  <td colSpan="5" className="text-center py-4">
+                    <div className="flex justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500" />
+                    </div>
+                  </td>
+                </tr>
+                ) : currentRegions.length === 0 ? (
+                  <tr>
+                    <td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500">
+                      Viloyatlar topilmadi
+                    </td>
+                  </tr>
+                ) : currentRegions.map((region) => (
+                  <tr key={region._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {agent.first_name} {agent.last_name}
+                        {region.name}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{agent.phone}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{agent.passport}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
                       <Switch
-                        checked={agent.status === 'active'}
-                        onChange={() => handleStatusChange(agent)}
-                        className={`${agent.status === 'active' ? 'bg-indigo-600' : 'bg-gray-200'}
+                        checked={region.status === 'active'}
+                        onChange={() => handleStatusChange(region)}
+                        className={`${region.status === 'active' ? 'bg-indigo-600' : 'bg-gray-200'}
                           relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2`}
                       >
                         <span
                           aria-hidden="true"
-                          className={`${agent.status === 'active' ? 'translate-x-5' : 'translate-x-0'}
+                          className={`${region.status === 'active' ? 'translate-x-5' : 'translate-x-0'}
                             pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
                         />
                       </Switch>
@@ -216,19 +289,13 @@ export default function AgentsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
                         <button
-                          onClick={() => handleView(agent)}
-                          className="text-gray-600 hover:text-gray-900"
-                        >
-                          <EyeIcon className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(agent)}
+                          onClick={() => handleEdit(region)}
                           className="text-indigo-600 hover:text-indigo-900"
                         >
                           <PencilSquareIcon className="h-5 w-5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(agent)}
+                          onClick={() => handleDelete(region)}
                           className="text-red-600 hover:text-red-900"
                         >
                           <TrashIcon className="h-5 w-5" />
@@ -240,7 +307,7 @@ export default function AgentsPage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan="5">
+                  <td colSpan="3">
                     <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
                       <div className="flex-1 flex justify-between sm:hidden">
                         <button
@@ -261,9 +328,9 @@ export default function AgentsPage() {
                       <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                         <div>
                           <p className="text-sm text-gray-700">
-                            Jami <span className="font-medium">{filteredAgents.length}</span> ta agent,{' '}
+                            Jami <span className="font-medium">{filteredRegions.length}</span> ta viloyat,{' '}
                             <span className="font-medium">{startIndex + 1}</span> dan{' '}
-                            <span className="font-medium">{Math.min(endIndex, filteredAgents.length)}</span> gacha ko'rsatilmoqda
+                            <span className="font-medium">{Math.min(endIndex, filteredRegions.length)}</span> gacha ko'rsatilmoqda
                           </p>
                         </div>
                         <div>
@@ -311,29 +378,24 @@ export default function AgentsPage() {
 
       {/* Modals */}
       {showModal && (
-        <AgentFormModal
-          agent={selectedAgent}
+        <RegionFormModal
+          region={selectedRegion}
           onSave={handleSave}
-          onClose={() => setShowModal(false)}
-        />
-      )}
-
-      {showViewModal && selectedAgent && (
-        <AgentViewModal
-          agentId={selectedAgent._id}
-          show={showViewModal}
           onClose={() => {
-            setShowViewModal(false);
-            setSelectedAgent(null);
+            setShowModal(false);
+            setSelectedRegion(null);
           }}
         />
       )}
 
-      {showDeleteModal && selectedAgent && (
+      {showDeleteModal && selectedRegion && (
         <DeleteConfirmModal
-          agent={selectedAgent}
+          region={selectedRegion}
           onConfirm={handleConfirmDelete}
-          onClose={() => setShowDeleteModal(false)}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedRegion(null);
+          }}
         />
       )}
     </>

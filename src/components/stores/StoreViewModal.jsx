@@ -24,7 +24,7 @@ export default function StoreViewModal({ store, onClose }) {
           {/* Store Image */}
           <div className="relative h-64 sm:h-72">
             <img
-              src={store.image}
+              src={`https://backend.milliycrm.uz/${store.image}`}
               alt={store.name}
               className="w-full h-full object-cover"
             />

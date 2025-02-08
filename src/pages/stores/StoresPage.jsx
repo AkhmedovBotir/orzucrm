@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -15,33 +15,19 @@ import AppLayout from '../../components/layout/AppLayout';
 import StoreFormModal from '../../components/stores/StoreFormModal';
 import DeleteConfirmModal from '../../components/stores/DeleteConfirmModal';
 import StoreViewModal from '../../components/stores/StoreViewModal';
+import StatusChangeModal from '../../components/stores/StatusChangeModal';
+import { getStores, updateStoreStatus, createStore, getStore, deleteStore, updateStore } from '../../api/stores';
 
-// Mock data
-const initialStores = [
-  {
-    id: 1,
-    name: "Fast Food Express",
-    image: "https://picsum.photos/200/200",
-    address: "Toshkent sh., Chilonzor tumani, Muqumiy ko'chasi 32A",
-    phone: "+998901234567",
-    status: "active"
-  },
-  {
-    id: 2,
-    name: "Supermarket Plus",
-    image: "https://picsum.photos/200/200",
-    address: "Toshkent sh., Yunusobod tumani, Minor ko'chasi 45",
-    phone: "+998901234568",
-    status: "active"
-  },
-  // Add more mock data as needed
-];
+
 
 export default function StoresPage() {
-  const [stores, setStores] = useState(initialStores);
+  const [stores, setStores] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedStore, setSelectedStore] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -84,28 +70,77 @@ export default function StoresPage() {
     setShowDeleteModal(true);
   };
 
-  const handleView = (store) => {
-    console.log(store);
-    setSelectedStore(store);
-    setShowViewModal(true);
-  };
-
-  const handleSave = (storeData) => {
-    if (selectedStore) {
-      // Edit existing store
-      setStores(stores.map(s => 
-        s.id === selectedStore.id ? { ...s, ...storeData } : s
-      ));
-    } else {
-      // Add new store
-      setStores([...stores, { id: stores.length + 1, ...storeData }]);
+  const handleView = async (store) => {
+    try {
+      const storeData = await getStore(store._id);
+      setSelectedStore(storeData);
+      setShowViewModal(true);
+    } catch (err) {
+      setError(err.message);
     }
-    setShowModal(false);
   };
 
-  const handleConfirmDelete = () => {
-    setStores(stores.filter(s => s.id !== selectedStore.id));
-    setShowDeleteModal(false);
+  // Load stores on mount
+  useEffect(() => {
+    const fetchStores = async () => {
+      setLoading(true);
+      try {
+        const data = await getStores();
+        setStores(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStores();
+  }, []);
+
+  const handleSave = async (storeData) => {
+    try {
+      if (selectedStore) {
+        // Edit existing store
+        const updatedStore = await updateStore(selectedStore._id, storeData);
+        setStores(stores.map(store => 
+          store._id === selectedStore._id ? updatedStore : store
+        ));
+        setShowModal(false);
+      } else {
+        // Create new store
+        const newStore = await createStore(storeData);
+        setStores([...stores, newStore]);
+        setShowModal(false);
+      }
+      setSelectedStore(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteStore(selectedStore._id);
+      setStores(stores.filter(store => store._id !== selectedStore._id));
+      setShowDeleteModal(false);
+      setSelectedStore(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    try {
+      await updateStoreStatus(selectedStore._id, newStatus);
+      setStores(stores.map(store =>
+        store._id === selectedStore._id
+          ? { ...store, status: newStatus }
+          : store
+      ));
+      setShowStatusModal(false);
+      setSelectedStore(null);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -209,12 +244,12 @@ export default function StoresPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {currentStores.map((store) => (
-                  <tr key={store.id} className="hover:bg-gray-50">
+                  <tr key={store._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
                           <img
-                            src={store.image}
+                            src={`https://backend.milliycrm.uz/${store.image}`}
                             alt={store.name}
                             className="h-10 w-10 rounded-full object-cover"
                           />
@@ -239,15 +274,19 @@ export default function StoresPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
+                      <button
+                        onClick={() => {
+                          setSelectedStore(store);
+                          setShowStatusModal(true);
+                        }}
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           store.status === 'active'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                            : 'bg-red-100 text-red-800 hover:bg-red-200'
                         }`}
                       >
                         {store.status === 'active' ? 'Faol' : 'Nofaol'}
-                      </span>
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
@@ -365,6 +404,18 @@ export default function StoresPage() {
           <StoreViewModal
             store={selectedStore}
             onClose={() => setShowViewModal(false)}
+          />
+        )}
+
+        {showStatusModal && (
+          <StatusChangeModal
+            show={showStatusModal}
+            store={selectedStore}
+            onConfirm={handleStatusChange}
+            onClose={() => {
+              setShowStatusModal(false);
+              setSelectedStore(null);
+            }}
           />
         )}
       </div>

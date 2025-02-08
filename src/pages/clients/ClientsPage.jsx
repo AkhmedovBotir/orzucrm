@@ -1,46 +1,74 @@
-import { useState } from 'react';
-import { PlusIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon, XMarkIcon, PencilIcon, TrashIcon, EyeIcon } from '@heroicons/react/24/outline';
-import ClientModal from '../../components/clients/ClientModal';
+import { useState, useEffect } from 'react';
+import { 
+  PlusIcon, 
+  MagnifyingGlassIcon, 
+  ChevronLeftIcon, 
+  ChevronRightIcon, 
+  ChevronUpIcon,
+  ChevronDownIcon,
+  XMarkIcon, 
+  PencilIcon, 
+  TrashIcon, 
+  EyeIcon 
+} from '@heroicons/react/24/outline';
+import ClientFormModal from '../../components/clients/ClientFormModal';
 import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
+import ClientViewModal from '../../components/clients/ClientViewModal';
 
-// Mock data
-const mockClients = [
-  {
-    id: 1,
-    fullName: 'Abdullayev Abror',
-    phone: '+998 90 123 45 67',
-    region: 'Toshkent',
-    shopName: 'Ideal Market'
-  },
-  {
-    id: 2,
-    fullName: 'Karimov Jasur',
-    phone: '+998 91 234 56 78',
-    region: 'Samarqand',
-    shopName: 'Fresh Market'
-  },
-  // Add more mock data as needed
-];
+import { getClients, createClient, updateClient, deleteClient, updateClientStatus } from '../../api/clients';
+import { getRegions } from '../../api/regions';
+import { getStores } from '../../api/stores';
 
 export default function ClientsPage() {
   // States
-  const [clients, setClients] = useState(mockClients);
+  const [clients, setClients] = useState([]);
+  const [regions, setRegions] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('');
-  const [showModal, setShowModal] = useState(false);
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: 'asc'
+  });
+  const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
-  const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', or 'view'
+  const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
   const itemsPerPage = 10;
+
+  // Load data
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [clientsData, regionsData, storesData] = await Promise.all([
+          getClients(),
+          getRegions(),
+          getStores()
+        ]);
+        setClients(clientsData);
+        setRegions(regionsData);
+        setStores(storesData);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   // Filter clients
   const filteredClients = clients.filter(client => {
     const matchesSearch = 
-      client.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      `${client.first_name} ${client.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.phone.includes(searchQuery) ||
-      client.shopName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRegion = !selectedRegion || client.region === selectedRegion;
+      client.store.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRegion = !selectedRegion || client.region._id === selectedRegion;
     
     return matchesSearch && matchesRegion;
   });
@@ -56,50 +84,65 @@ export default function ClientsPage() {
     setSelectedRegion('');
   };
 
-  // Get unique regions for filter
-  const regions = [...new Set(clients.map(client => client.region))];
-
   // Handle client operations
-  const handleCreateClient = (data) => {
-    const newClient = {
-      id: clients.length + 1,
-      ...data
-    };
-    setClients([...clients, newClient]);
-    setShowModal(false);
+  const handleCreateClient = async (data) => {
+    try {
+      const newClient = await createClient(data);
+      setClients([...clients, newClient]);
+      setShowFormModal(false);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
-  const handleUpdateClient = (data) => {
-    setClients(clients.map(client => 
-      client.id === selectedClient.id 
-        ? { ...client, ...data }
-        : client
-    ));
-    setShowModal(false);
+
+
+  const handleUpdateClient = async (data) => {
+    try {
+      const updatedClient = await updateClient(selectedClient._id, {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+        region: data.region,
+        store: data.store
+      });
+      setClients(clients.map(client => 
+        client._id === selectedClient._id
+          ? { ...client, ...updatedClient.data }
+          : client
+      ));
+      setShowFormModal(false);
+    } catch (error) {
+      setError(error.message);
+    }
   };
 
-  const handleDeleteClient = (clientId) => {
-    setClients(clients.filter(client => client.id !== clientId));
-    setShowDeleteModal(false);
+  const handleDeleteClient = async (clientId) => {
+    try {
+      await deleteClient(clientId);
+      setClients(clients.filter(client => client._id !== clientId));
+      setShowDeleteModal(false);
+    } catch (error) {
+      setError(error.message);
+    }
   };
 
   // Modal handlers
   const openCreateModal = () => {
     setSelectedClient(null);
     setModalMode('create');
-    setShowModal(true);
+    setShowFormModal(true);
   };
 
   const openEditModal = (client) => {
     setSelectedClient(client);
     setModalMode('edit');
-    setShowModal(true);
+    setShowFormModal(true);
   };
 
   const openViewModal = (client) => {
     setSelectedClient(client);
-    setModalMode('view');
-    setShowModal(true);
+    setShowViewModal(true);
   };
 
   const openDeleteModal = (client) => {
@@ -178,8 +221,8 @@ export default function ClientsPage() {
                 >
                   <option value="">Barchasi</option>
                   {regions.map((region) => (
-                    <option key={region} value={region}>
-                      {region}
+                    <option key={region._id} value={region._id}>
+                      {region.name}
                     </option>
                   ))}
                 </select>
@@ -198,16 +241,118 @@ export default function ClientsPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                      Ism va familya
+                      <button 
+                        onClick={() => {
+                          const sorted = [...clients].sort((a, b) => 
+                            `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+                          );
+                          setClients(sorted);
+                        }}
+                        className="group inline-flex items-center space-x-2 text-gray-900"
+                      >
+                        <span>Ism va familya</span>
+                        <ChevronUpIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-500" />
+                      </button>
                     </th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Telefon raqam
+                      <button 
+                        onClick={() => {
+                          setSortConfig(prev => ({
+                            key: 'phone',
+                            direction: prev.key === 'phone' && prev.direction === 'asc' ? 'desc' : 'asc'
+                          }));
+                          const sorted = [...clients].sort((a, b) => {
+                            if (sortConfig.key === 'phone') {
+                              return sortConfig.direction === 'asc' 
+                                ? b.phone.localeCompare(a.phone)
+                                : a.phone.localeCompare(b.phone);
+                            }
+                            return 0;
+                          });
+                          setClients(sorted);
+                        }}
+                        className="group inline-flex items-center space-x-2 text-gray-900"
+                      >
+                        <span>Telefon raqam</span>
+                        {sortConfig.key === 'phone' ? (
+                          sortConfig.direction === 'desc' ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronUpIcon className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ChevronUpIcon className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
                     </th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Viloyat
+                      <button 
+                        onClick={() => {
+                          setSortConfig(prev => ({
+                            key: 'region',
+                            direction: prev.key === 'region' && prev.direction === 'asc' ? 'desc' : 'asc'
+                          }));
+                          const sorted = [...clients].sort((a, b) => {
+                            if (sortConfig.key === 'region') {
+                              const aName = a.region?.name || '';
+                              const bName = b.region?.name || '';
+                              return sortConfig.direction === 'asc' 
+                                ? bName.localeCompare(aName)
+                                : aName.localeCompare(bName);
+                            }
+                            return 0;
+                          });
+                          setClients(sorted);
+                        }}
+                        className="group inline-flex items-center space-x-2 text-gray-900"
+                      >
+                        <span>Viloyat</span>
+                        {sortConfig.key === 'region' ? (
+                          sortConfig.direction === 'desc' ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronUpIcon className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ChevronUpIcon className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
                     </th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Do'kon nomi
+                      <button 
+                        onClick={() => {
+                          setSortConfig(prev => ({
+                            key: 'store',
+                            direction: prev.key === 'store' && prev.direction === 'asc' ? 'desc' : 'asc'
+                          }));
+                          const sorted = [...clients].sort((a, b) => {
+                            if (sortConfig.key === 'store') {
+                              const aName = a.store?.name || '';
+                              const bName = b.store?.name || '';
+                              return sortConfig.direction === 'asc' 
+                                ? bName.localeCompare(aName)
+                                : aName.localeCompare(bName);
+                            }
+                            return 0;
+                          });
+                          setClients(sorted);
+                        }}
+                        className="group inline-flex items-center space-x-2 text-gray-900"
+                      >
+                        <span>Do'kon nomi</span>
+                        {sortConfig.key === 'store' ? (
+                          sortConfig.direction === 'desc' ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronUpIcon className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ChevronUpIcon className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </th>
+                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                      Status
                     </th>
                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                       <span className="sr-only">Amallar</span>
@@ -215,45 +360,92 @@ export default function ClientsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {paginatedClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-gray-50">
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                        {client.fullName}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {client.phone}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {client.region}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {client.shopName}
-                      </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <button
-                          onClick={() => openViewModal(client)}
-                          className="text-gray-400 hover:text-gray-500 mx-2"
-                        >
-                          <EyeIcon className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(client)}
-                          className="text-indigo-600 hover:text-indigo-900 mx-2"
-                        >
-                          <PencilIcon className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => openDeleteModal(client)}
-                          className="text-red-600 hover:text-red-900 mx-2"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
+                  {loading ? (
+                    <tr>
+                      <td colSpan="5" className="text-center py-4">
+                        <div className="flex justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500" />
+                        </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan="5" className="text-center py-4 text-red-500">
+                        {error}
+                      </td>
+                    </tr>
+                  ) : paginatedClients.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="text-center py-4 text-gray-500">
+                        Mijozlar topilmadi
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedClients.map((client) => (
+                      <tr key={client._id} className="hover:bg-gray-50">
+                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                          {`${client.first_name} ${client.last_name}`}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          {client.phone}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          {client.region?.name || 'Viloyat mavjud emas'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          {client.store?.name || 'Do\'kon mavjud emas'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const newStatus = client.status === 'active' ? 'inactive' : 'active';
+                                await updateClientStatus(client._id, newStatus);
+                                setClients(clients.map(c => 
+                                  c._id === client._id 
+                                    ? { ...c, status: newStatus }
+                                    : c
+                                ));
+                              } catch (error) {
+                                setError(error.message);
+                              }
+                            }}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 ${client.status === 'active' ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                            role="switch"
+                            aria-checked={client.status === 'active'}
+                          >
+                            <span className="sr-only">Status o'zgartirish</span>
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${client.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`}
+                            />
+                          </button>
+                        </td>
+                        <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                          <button
+                            onClick={() => openViewModal(client)}
+                            className="text-gray-400 hover:text-gray-500 mx-2"
+                          >
+                            <EyeIcon className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(client)}
+                            className="text-indigo-600 hover:text-indigo-900 mx-2"
+                          >
+                            <PencilIcon className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => openDeleteModal(client)}
+                            className="text-red-600 hover:text-red-900 mx-2"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                  </tbody>
               </table>
-
               {/* Pagination */}
               <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
                 <div className="flex flex-1 justify-between sm:hidden">
@@ -320,27 +512,30 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      {/* Client Modal */}
-      <ClientModal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        title={
-          modalMode === 'create' 
-            ? 'Yangi mijoz qo\'shish' 
-            : modalMode === 'edit'
-              ? 'Mijoz ma\'lumotlarini tahrirlash'
-              : 'Mijoz ma\'lumotlari'
-        }
-        client={selectedClient}
-        onSave={modalMode === 'create' ? handleCreateClient : handleUpdateClient}
-        mode={modalMode}
-      />
+      {/* Client Form Modal */}
+      {showFormModal && (
+        <ClientFormModal
+          client={selectedClient}
+          regions={regions}
+          stores={stores}
+          onSave={modalMode === 'create' ? handleCreateClient : handleUpdateClient}
+          onClose={() => setShowFormModal(false)}
+        />
+      )}
+
+      {/* Client View Modal */}
+      {showViewModal && selectedClient && (
+        <ClientViewModal
+          clientId={selectedClient._id}
+          onClose={() => setShowViewModal(false)}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        onConfirm={() => handleDeleteClient(selectedClient?.id)}
+        onConfirm={() => handleDeleteClient(selectedClient?._id)}
         title="Mijozni o'chirish"
         message="Rostdan ham bu mijozni o'chirmoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi."
       />

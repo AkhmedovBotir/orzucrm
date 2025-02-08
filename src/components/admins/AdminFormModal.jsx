@@ -2,18 +2,21 @@ import { useState, useEffect } from 'react';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 const permissions = [
-  { id: 'dashboard', name: 'Dashboard' },
-  { id: 'admins', name: 'Adminlar' },
-  { id: 'warehouse', name: 'Ombor' },
-  { id: 'stores', name: 'Do\'konlar' },
-  { id: 'agents', name: 'Agentlar' },
-  { id: 'statistics', name: 'Statistika' },
-  { id: 'accounting', name: 'Bugalteriya' },
-  { id: 'clients', name: 'Mijozlar' },
-  { id: 'regions', name: 'Viloyatlar' },
+  { id: 'Dashboard', name: 'Dashboard' },
+  { id: 'Adminlar', name: 'Adminlar' },
+  { id: 'Bugalteriya', name: 'Bugalteriya' },
+  { id: 'Kategoriyalar', name: 'Kategoriyalar' },
+  { id: 'Maxsulotlar', name: 'Maxsulotlar' },
+  { id: 'Do\'konlar', name: 'Do\'konlar' },
+  { id: 'Agentlar', name: 'Agentlar' },
+  { id: 'Mijozlar', name: 'Mijozlar' },
+  { id: 'Optom buyurtma', name: 'Optom buyurtma' },
+  { id: 'Dona buyurtma', name: 'Dona buyurtma' },
+  { id: 'Buyurtmalar', name: 'Buyurtmalar' },
+  { id: 'Statistika', name: 'Statistika' }
 ];
 
-export default function AdminFormModal({ show, onClose, onSubmit, initialData }) {
+export default function AdminFormModal({ show, onClose, onSubmit, title, initialData }) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -31,7 +34,7 @@ export default function AdminFormModal({ show, onClose, onSubmit, initialData })
     if (initialData) {
       setFormData({
         ...initialData,
-        password: '', // Don't show existing password
+        password: '',
         confirmPassword: ''
       });
     }
@@ -72,7 +75,7 @@ export default function AdminFormModal({ show, onClose, onSubmit, initialData })
           <form onSubmit={handleSubmit}>
             <div className="bg-white px-6 pt-5 pb-4 sm:p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-5">
-                {initialData ? 'Admin ma\'lumotlarini tahrirlash' : 'Yangi admin qo\'shish'}
+                {title}
               </h3>
               
               <div className="grid grid-cols-2 gap-6">
@@ -121,7 +124,9 @@ export default function AdminFormModal({ show, onClose, onSubmit, initialData })
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Parol</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      {initialData ? 'Yangi parol (ixtiyoriy)' : 'Parol'}
+                    </label>
                     <div className="mt-1 relative rounded-md shadow-sm">
                       <input
                         type={showPassword ? "text" : "password"}
@@ -143,35 +148,36 @@ export default function AdminFormModal({ show, onClose, onSubmit, initialData })
                       </button>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Parolni takrorlang</label>
-                    <div className="mt-1 relative rounded-md shadow-sm">
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        {...(!initialData && { required: true })}
-                        value={formData.confirmPassword}
-                        onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute inset-y-0 right-0 flex items-center pr-3"
-                      >
-                        {showConfirmPassword ? (
-                          <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-                        ) : (
-                          <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-                        )}
-                      </button>
-                    </div>
-                    {!initialData && formData.password && formData.confirmPassword && 
-                      formData.password !== formData.confirmPassword && (
+                  {formData.password && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Parolni takrorlang</label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required={!!formData.password}
+                          value={formData.confirmPassword}
+                          onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3"
+                        >
+                          {showConfirmPassword ? (
+                            <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                          ) : (
+                            <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                          )}
+                        </button>
+                      </div>
+                      {formData.password !== formData.confirmPassword && (
                         <p className="mt-1 text-sm text-red-600">
                           Parollar mos kelmadi
                         </p>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

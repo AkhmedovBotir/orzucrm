@@ -65,6 +65,11 @@ const navigation = [
     icon: UsersIcon
   },
   {
+    name: 'Viloyatlar',
+    href: '/regions',
+    icon: MapIcon
+  },
+  {
     name: 'Mijozlar',
     href: '/clients',
     icon: UserGroupIcon

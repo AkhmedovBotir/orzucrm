@@ -1,8 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { formatPrice } from '../../utils/format';
-import ProductFormModal from '../../components/products/ProductFormModal';
+// import ProductFormModal from '../../components/products/ProductFormModal';
 import ProductViewModal from '../../components/products/ProductViewModal';
+import EditProductModal from '../../components/products/EditProductModal';
+import CreateProductModal from '../../components/products/CreateProductModal';
 import DeleteConfirmModal from '../../components/products/DeleteConfirmModal';
+import StatusChangeModal from '../../components/products/StatusChangeModal';
 import {
   PlusIcon,
   PencilSquareIcon,
@@ -14,53 +17,22 @@ import {
   FunnelIcon
 } from '@heroicons/react/24/outline';
 
-// Test uchun example data
-const initialProducts = [
-  {
-    id: 1,
-    name: 'iPhone 13',
-    price: 12000000,
-    wholesalePrice: 11000000,
-    categoryId: 1,
-    subcategoryId: 1,
-    quantity: 10,
-    images: [
-      'https://picsum.photos/200',
-      'https://picsum.photos/200',
-      'https://picsum.photos/200'
-    ]
-  },
-  {
-    id: 2,
-    name: 'Samsung Galaxy S21',
-    price: 8000000,
-    wholesalePrice: 7500000,
-    categoryId: 1,
-    subcategoryId: 1,
-    quantity: 15,
-    images: [
-      'https://picsum.photos/200',
-      'https://picsum.photos/200'
-    ]
-  }
-];
-
-// Test uchun kategoriyalar
-const categories = [
-  { id: 1, name: 'Telefonlar', type: 'category' },
-  { id: 2, name: 'Noutbuklar', type: 'category' },
-  { id: 1, name: 'Apple', type: 'subcategory', categoryId: 1 },
-  { id: 2, name: 'Samsung', type: 'subcategory', categoryId: 1 },
-  { id: 3, name: 'Lenovo', type: 'subcategory', categoryId: 2 },
-  { id: 4, name: 'HP', type: 'subcategory', categoryId: 2 },
-];
+import { getProducts, updateProductStatus, deleteProduct } from '../../api/products';
+import { getCategoryWithSubs } from '../../api/categories';
+import { Avatar } from '@mui/material';
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [subcategories, setSubcategories] = useState({});
   const [showFormModal, setShowFormModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 10;
 
@@ -68,41 +40,47 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
-  const [minQuantity, setMinQuantity] = useState('');
-  const [maxQuantity, setMaxQuantity] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
 
   // Filter products
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
       const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = !selectedCategory || product.categoryId === parseInt(selectedCategory);
-      const matchesSubcategory = !selectedSubcategory || product.subcategoryId === parseInt(selectedSubcategory);
-      const matchesPrice = (!minPrice || product.price >= parseInt(minPrice)) && 
-                          (!maxPrice || product.price <= parseInt(maxPrice));
-      const matchesQuantity = (!minQuantity || product.quantity >= parseInt(minQuantity)) && 
-                             (!maxQuantity || product.quantity <= parseInt(maxQuantity));
+      const matchesCategory = !selectedCategory || product.category?._id === selectedCategory;
+      const matchesSubcategory = !selectedSubcategory || product.subcategory === selectedSubcategory;
+      const matchesStatus = !selectedStatus || product.status === selectedStatus;
       
-      return matchesSearch && matchesCategory && matchesSubcategory && matchesPrice && matchesQuantity;
+      return matchesSearch && matchesCategory && matchesSubcategory && matchesStatus;
     });
-  }, [products, searchTerm, selectedCategory, selectedSubcategory, minPrice, maxPrice, minQuantity, maxQuantity]);
+  }, [products, searchTerm, selectedCategory, selectedSubcategory, selectedStatus]);
 
-  // Get available categories and subcategories
-  const availableCategories = [...new Set(products.map(p => p.categoryId))];
-  const availableSubcategories = selectedCategory 
-    ? [...new Set(products.filter(p => p.categoryId === parseInt(selectedCategory)).map(p => p.subcategoryId))]
-    : [...new Set(products.map(p => p.subcategoryId))];
+  // Fetch products and subcategories
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const data = await getProducts();
+        setProducts(data);
 
-  const getCategoryName = (categoryId) => {
-    const category = categories.find(cat => cat.id === categoryId && cat.type === 'category');
-    return category ? category.name : '';
-  };
+        // Fetch subcategories for each unique category
+        const uniqueCategories = [...new Set(data.map(product => product.category?._id))].filter(Boolean);
+        const subcategoriesMap = {};
 
-  const getSubcategoryName = (subcategoryId) => {
-    const subcategory = categories.find(cat => cat.id === subcategoryId && cat.type === 'subcategory');
-    return subcategory ? subcategory.name : '';
-  };
+        for (const categoryId of uniqueCategories) {
+          const categoryData = await getCategoryWithSubs(categoryId);
+          subcategoriesMap[categoryId] = categoryData.subcategories;
+        }
+
+        setSubcategories(subcategoriesMap);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const handleAdd = () => {
     setSelectedProduct(null);
@@ -124,45 +102,35 @@ export default function ProductsPage() {
     setShowViewModal(true);
   };
 
-  const handleSubmit = (formData) => {
-    if (selectedProduct) {
-      // Update product
-      setProducts(products.map(product =>
-        product.id === selectedProduct.id
-          ? {
-              ...product,
-              name: formData.get('name'),
-              price: Number(formData.get('price')),
-              wholesalePrice: Number(formData.get('wholesalePrice')),
-              categoryId: Number(formData.get('categoryId')),
-              subcategoryId: Number(formData.get('subcategoryId')),
-              quantity: Number(formData.get('quantity')),
-              images: formData.getAll('images').map(image => URL.createObjectURL(image))
-            }
-          : product
-      ));
-    } else {
-      // Create product
-      const newProduct = {
-        id: Date.now(),
-        name: formData.get('name'),
-        price: Number(formData.get('price')),
-        wholesalePrice: Number(formData.get('wholesalePrice')),
-        categoryId: Number(formData.get('categoryId')),
-        subcategoryId: Number(formData.get('subcategoryId')),
-        quantity: Number(formData.get('quantity')),
-        images: formData.getAll('images').map(image => URL.createObjectURL(image))
-      };
-      setProducts([...products, newProduct]);
-    }
-    setShowFormModal(false);
-    setSelectedProduct(null);
+  const handleStatusChange = (product) => {
+    setSelectedProduct(product);
+    setShowStatusModal(true);
   };
 
-  const handleDeleteConfirm = () => {
-    setProducts(products.filter(product => product.id !== selectedProduct.id));
-    setShowDeleteModal(false);
-    setSelectedProduct(null);
+  const handleStatusConfirm = async () => {
+    try {
+      const newStatus = selectedProduct.status === 'active' ? 'inactive' : 'active';
+      await updateProductStatus(selectedProduct._id, newStatus);
+      const updatedProducts = await getProducts();
+      setProducts(updatedProducts);
+      setShowStatusModal(false);
+      setSelectedProduct(null);
+    } catch (error) {
+      console.error('Error updating product status:', error);
+      setError(error.message);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await deleteProduct(selectedProduct._id);
+      const updatedProducts = await getProducts();
+      setProducts(updatedProducts);
+      setShowDeleteModal(false);
+      setSelectedProduct(null);
+    } catch (error) {
+      console.error('Error deleting product:', error);
+    }
   };
 
   const indexOfLastProduct = currentPage * productsPerPage;
@@ -184,7 +152,7 @@ export default function ProductsPage() {
           </p>
         </div>
         <button
-          onClick={handleAdd}
+          onClick={() => setShowCreateModal(true)}
           className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
@@ -232,11 +200,18 @@ export default function ProductsPage() {
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
               >
                 <option value="">Barchasi</option>
-                {availableCategories.map((catId) => (
-                  <option key={catId} value={catId}>
-                    {getCategoryName(catId)}
-                  </option>
-                ))}
+                {products
+                  .reduce((acc, product) => {
+                    if (product.category && !acc.find(cat => cat._id === product.category._id)) {
+                      acc.push(product.category);
+                    }
+                    return acc;
+                  }, [])
+                  .map(category => (
+                    <option key={category._id} value={category._id}>
+                      {category.name}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -250,44 +225,32 @@ export default function ProductsPage() {
                 value={selectedSubcategory}
                 onChange={(e) => setSelectedSubcategory(e.target.value)}
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                disabled={!selectedCategory}
               >
                 <option value="">Barchasi</option>
-                {availableSubcategories.map((subId) => (
-                  <option key={subId} value={subId}>
-                    {getSubcategoryName(subId)}
+                {selectedCategory && subcategories[selectedCategory]?.map(subcategory => (
+                  <option key={subcategory._id} value={subcategory._id}>
+                    {subcategory.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Quantity Range */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="minQuantity" className="block text-sm font-medium text-gray-700">
-                  Min soni
-                </label>
-                <input
-                  type="number"
-                  id="minQuantity"
-                  value={minQuantity}
-                  onChange={(e) => setMinQuantity(e.target.value)}
-                  className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label htmlFor="maxQuantity" className="block text-sm font-medium text-gray-700">
-                  Max soni
-                </label>
-                <input
-                  type="number"
-                  id="maxQuantity"
-                  value={maxQuantity}
-                  onChange={(e) => setMaxQuantity(e.target.value)}
-                  className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                  placeholder="0"
-                />
-              </div>
+            {/* Status Filter */}
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+                Status
+              </label>
+              <select
+                id="status"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+              >
+                <option value="">Barchasi</option>
+                <option value="active">Faol</option>
+                <option value="inactive">Nofaol</option>
+              </select>
             </div>
 
             {/* Reset Filters */}
@@ -297,10 +260,7 @@ export default function ProductsPage() {
                   setSearchTerm('');
                   setSelectedCategory('');
                   setSelectedSubcategory('');
-                  setMinPrice('');
-                  setMaxPrice('');
-                  setMinQuantity('');
-                  setMaxQuantity('');
+                  setSelectedStatus('');
                 }}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
@@ -316,32 +276,95 @@ export default function ProductsPage() {
         <div className="min-w-full divide-y divide-gray-200">
           <div className="bg-gray-50">
             <div className="grid grid-cols-12 px-6 py-3 gap-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              <div className="col-span-2">Rasmlar</div>
-              <div className="col-span-2">Nomi</div>
-              <div className="col-span-2 text-center">Narxi (dona)</div>
-              <div className="col-span-2 text-center">Narxi (optom)</div>
-              <div className="col-span-1 text-center">Kategoriya</div>
-              <div className="col-span-1 text-center">Subkategoriya</div>
-              <div className="col-span-1 text-center">Soni</div>
-              <div className="col-span-1 text-center">Amallar</div>
+              <div className="col-span-1">Rasm</div>
+              <div className="col-span-2">
+                <button 
+                  onClick={() => {
+                    const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name));
+                    setProducts(sorted);
+                  }}
+                  className="flex items-center space-x-1 hover:text-gray-700"
+                >
+                  <span>Nomi</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                  </svg>
+                </button>
+              </div>
+              <div className="col-span-2 text-center">
+                <button 
+                  onClick={() => {
+                    const sorted = [...products].sort((a, b) => a.category?.name.localeCompare(b.category?.name));
+                    setProducts(sorted);
+                  }}
+                  className="flex items-center justify-center space-x-1 hover:text-gray-700"
+                >
+                  <span>Kategoriya</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                  </svg>
+                </button>
+              </div>
+              <div className="col-span-2 text-center">Subkategoriya</div>
+              <div className="col-span-1 text-center">
+                <button 
+                  onClick={() => {
+                    const sorted = [...products].sort((a, b) => a.status.localeCompare(b.status));
+                    setProducts(sorted);
+                  }}
+                  className="flex items-center justify-center space-x-1 hover:text-gray-700"
+                >
+                  <span>Status</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                  </svg>
+                </button>
+              </div>
+              <div className="col-span-1 text-center">
+                <button 
+                  onClick={() => {
+                    const sorted = [...products].sort((a, b) => a.quantity - b.quantity);
+                    setProducts(sorted);
+                  }}
+                  className="flex items-center justify-center space-x-1 hover:text-gray-700"
+                >
+                  <span>Soni</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                  </svg>
+                </button>
+              </div>
+              <div className="col-span-1 text-center">
+                <button 
+                  onClick={() => {
+                    const sorted = [...products].sort((a, b) => a.packageQuantity - b.packageQuantity);
+                    setProducts(sorted);
+                  }}
+                  className="flex items-center justify-center space-x-1 hover:text-gray-700"
+                >
+                  <span>Optom soni</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                  </svg>
+                </button>
+              </div>
+              <div className="col-span-2 text-center">Amallar</div>
             </div>
           </div>
           <div className="bg-white divide-y divide-gray-200">
             {currentProducts.map((product) => (
-              <div key={product.id} className="grid grid-cols-12 px-6 py-4 gap-4 hover:bg-gray-50">
-                <div className="col-span-2">
-                  <div className="flex -space-x-2">
-                    {product.images.slice(0, 3).map((image, index) => (
+              <div key={product._id} className="grid grid-cols-12 px-6 py-4 gap-4 hover:bg-gray-50">
+                <div className="col-span-1">
+                  <div className="w-12 h-12">
+                    {product.images.length > 0 ? (
                       <img
-                        key={index}
-                        src={image}
-                        alt=""
-                        className="h-8 w-8 rounded-full ring-2 ring-white object-cover"
+                        src={`https://backend.milliycrm.uz/${product.images[0]}`}
+                        alt={product.name}
+                        className="w-full h-full object-cover rounded-md"
                       />
-                    ))}
-                    {product.images.length > 3 && (
-                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-gray-100 ring-2 ring-white">
-                        <span className="text-xs text-gray-500">+{product.images.length - 3}</span>
+                    ) : (
+                      <div className="w-full h-full bg-gray-200 rounded-md flex items-center justify-center">
+                        <Avatar className="w-6 h-6 text-gray-400" />
                       </div>
                     )}
                   </div>
@@ -349,37 +372,55 @@ export default function ProductsPage() {
                 <div className="col-span-2">
                   <div className="text-sm font-medium text-gray-900">{product.name}</div>
                 </div>
-                <div className="col-span-2 text-center">
-                  <div className="text-sm text-gray-900">{formatPrice(product.price)}</div>
+                <div className="col-span-2">
+                  <div className="text-sm text-gray-900 text-center">{product.category?.name}</div>
                 </div>
-                <div className="col-span-2 text-center">
-                  <div className="text-sm text-gray-900">{formatPrice(product.wholesalePrice)}</div>
+                <div className="col-span-2">
+                  <div className="text-sm text-gray-900 text-center">
+                    {product.category && subcategories[product.category._id]?.find(sub => sub._id === product.subcategory)?.name || '-'}
+                  </div>
                 </div>
-                <div className="col-span-1">
-                  <div className="text-sm text-gray-900 text-center">{getCategoryName(product.categoryId)}</div>
-                </div>
-                <div className="col-span-1">
-                  <div className="text-sm text-gray-900 text-center">{getSubcategoryName(product.subcategoryId)}</div>
+                <div className="col-span-1 text-center">
+                  <div className="flex justify-center">
+                    <button
+                      onClick={() => handleStatusChange(product)}
+                      className={`${product.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} px-2 py-1 text-xs font-medium rounded-full`}
+                    >
+                      {product.status === 'active' ? 'Faol' : 'Nofaol'}
+                    </button>
+                  </div>
                 </div>
                 <div className="col-span-1 text-center">
                   <div className="text-sm text-gray-900">{product.quantity}</div>
                 </div>
-                <div className="col-span-1">
+                <div className="col-span-1 text-center">
+                  <div className="text-sm text-gray-900">{product.packageQuantity}</div>
+                </div>
+                <div className="col-span-2">
                   <div className="flex justify-center space-x-3">
                     <button
-                      onClick={() => handleView(product)}
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setShowViewModal(true);
+                      }}
                       className="text-blue-400 hover:text-blue-600 transition-colors"
                     >
                       <EyeIcon className="h-5 w-5" />
                     </button>
                     <button
-                      onClick={() => handleEdit(product)}
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setShowEditModal(true);
+                      }}
                       className="text-indigo-400 hover:text-indigo-600 transition-colors"
                     >
                       <PencilSquareIcon className="h-5 w-5" />
                     </button>
                     <button
-                      onClick={() => handleDelete(product)}
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setShowDeleteModal(true);
+                      }}
                       className="text-red-400 hover:text-red-600 transition-colors"
                     >
                       <TrashIcon className="h-5 w-5" />
@@ -464,7 +505,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <ProductFormModal
+      {/* <ProductFormModal
         show={showFormModal}
         onClose={() => {
           setShowFormModal(false);
@@ -474,6 +515,7 @@ export default function ProductsPage() {
         initialData={selectedProduct}
         categories={categories}
       />
+      */}
 
       <ProductViewModal
         show={showViewModal}
@@ -482,7 +524,28 @@ export default function ProductsPage() {
           setSelectedProduct(null);
         }}
         product={selectedProduct}
-        categories={categories}
+      />
+
+      <CreateProductModal
+        show={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={async () => {
+          const data = await getProducts();
+          setProducts(data);
+        }}
+      />
+
+      <EditProductModal
+        show={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedProduct(null);
+        }}
+        onSuccess={async () => {
+          const data = await getProducts();
+          setProducts(data);
+        }}
+        product={selectedProduct}
       />
 
       <DeleteConfirmModal
@@ -492,6 +555,16 @@ export default function ProductsPage() {
           setSelectedProduct(null);
         }}
         onConfirm={handleDeleteConfirm}
+        product={selectedProduct}
+      />
+
+      <StatusChangeModal
+        show={showStatusModal}
+        onClose={() => {
+          setShowStatusModal(false);
+          setSelectedProduct(null);
+        }}
+        onConfirm={handleStatusConfirm}
         product={selectedProduct}
       />
     </div>

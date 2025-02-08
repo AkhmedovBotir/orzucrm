@@ -5,8 +5,6 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 import AdminsPage from './pages/admins/AdminsPage';
 import CategoriesPage from './pages/categories/CategoriesPage';
-import ProtectedRoute from './components/auth/ProtectedRoute';
-import { AuthProvider } from './context/AuthContext';
 import ProductsPage from './pages/products/ProductsPage';
 import AppLayout from './components/layout/AppLayout'; 
 import StoresPage from './pages/stores/StoresPage';
@@ -16,22 +14,17 @@ import RetailOrderPage from './pages/orders/RetailOrderPage';
 import OrdersPage from './pages/orders/OrdersPage';
 import ClientsPage from './pages/clients/ClientsPage';
 import AccountingPage from './pages/accounting/AccountingPage';
+import RegionsPage from './pages/regions/RegionsPage';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import { AuthProvider } from './context/AuthContext';
 
-// TODO: Keyingi sahifalar uchun importlar
-
-export default function App() {
-  // TODO: Authentication logikasi
-  const isAuthenticated = true;
-
+function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
           {/* Public routes */}
-          <Route
-            path="/login"
-            element={<LoginPage />}
-          />
+          <Route path="/login" element={<LoginPage />} />
 
           {/* Protected routes */}
           <Route
@@ -144,6 +137,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/regions"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <RegionsPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
           {/* 404 Page */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
@@ -151,3 +154,5 @@ export default function App() {
     </Router>
   );
 }
+
+export default App;
